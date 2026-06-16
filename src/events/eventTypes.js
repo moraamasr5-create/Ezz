@@ -9,5 +9,9 @@ export const EventTypes = {
   
   // أحداث الفواتير والعملاء (جديدة)
   INVOICE_CREATED: 'INVOICE_CREATED',
-  CUSTOMER_REGISTERED: 'CUSTOMER_REGISTERED'
+  CUSTOMER_REGISTERED: 'CUSTOMER_REGISTERED',
+  
+  // أحداث الطابور والمصففين
+  CUSTOMER_QUEUED: 'CUSTOMER_QUEUED',
+  QUEUE_COMPLETED: 'QUEUE_COMPLETED'
 };

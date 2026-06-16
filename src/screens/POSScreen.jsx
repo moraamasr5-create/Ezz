@@ -8,6 +8,7 @@ import SyncIndicator from '../components/SyncIndicator';
 import ReceiptPrinter from '../components/ReceiptPrinter';
 import { getCombinedCareTips } from '../core/SmartCareEngine';
 import DashboardExample from '../components/DashboardExample';
+import QueueManager from '../components/QueueManager';
 
 export default function POSScreen() {
   const currentBranchId = 'branch-main-01'; 
@@ -199,6 +200,9 @@ export default function POSScreen() {
                   قفل الوردية 🔒
                 </button>
               </div>
+
+              {/* إدارة الطابور */}
+              <QueueManager branchId={currentBranchId} shiftId={currentShiftId} disabled={shiftState !== 'OPEN'} />
             </div>
 
             {/* قسم السلة والعميل (اليسار) */}
