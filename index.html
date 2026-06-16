@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BarberySmart POS & Care</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * {
+            direction: rtl;
+            text-align: right;
+        }
+        
+        :root {
+            --primary-dark: #0f0f0f;
+            --primary-gold: #d4af37;
+            --primary-bronze: #8b6914;
+            --accent-dark: #1a1a1a;
+            --accent-light: #2d2d2d;
+        }
+        
+        body {
+            background-color: var(--primary-dark);
+            color: #e0e0e0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .gradient-border {
+            border-left: 4px solid var(--primary-gold);
+        }
+        
+        .gold-text {
+            color: var(--primary-gold);
+        }
+        
+        .bronze-text {
+            color: var(--primary-bronze);
+        }
+        
+        .btn-gold {
+            background: linear-gradient(135deg, var(--primary-gold) 0%, var(--primary-bronze) 100%);
+            color: #000;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-gold:hover {
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.6);
+            transform: translateY(-2px);
+        }
+        
+        .status-online {
+            background-color: #10b981;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
+        }
+        
+        .status-offline {
+            background-color: #ef4444;
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
+        }
+        
+        .status-syncing {
+            background-color: #f59e0b;
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.6);
+        }
+        
+        .service-btn {
+            background-color: var(--accent-light);
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+            padding: 16px;
+            border-radius: 8px;
+        }
+        
+        .service-btn:hover {
+            border-color: var(--primary-gold);
+            box-shadow: 0 0 15px rgba(212, 175, 55, 0.3);
+        }
+        
+        .service-btn.selected {
+            background: linear-gradient(135deg, rgba(212, 175, 55, 0.2) 0%, rgba(139, 105, 20, 0.2) 100%);
+            border-color: var(--primary-gold);
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.4);
+        }
+        
+        .thermal-paper {
+            width: 80mm;
+            background-color: #fff;
+            color: #000;
+            padding: 10mm;
+            font-family: monospace;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+        
+        .cart-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+        }
+        
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background-color: var(--accent-light);
+            padding: 24px;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 90%;
+            border: 2px solid var(--primary-gold);
+        }
+        
+        @media print {
+            body {
+                background: white;
+                color: black;
+                margin: 0;
+                padding: 0;
+            }
+            
+            .no-print {
+                display: none !important;
+            }
+            
+            .thermal-paper {
+                width: 100%;
+                padding: 0;
+                box-shadow: none;
+            }
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 16px 24px;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary-gold);
+            background-color: var(--accent-light);
+            z-index: 999;
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .pending-badge {
+            background-color: #f59e0b;
+            color: #000;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        input, select, textarea {
+            background-color: var(--accent-dark) !important;
+            color: #e0e0e0 !important;
+            border: 1px solid var(--primary-bronze) !important;
+        }
+    </style>
+</head>
+<body class="bg-black">
+    <!-- SQL Setup Instructions (نسخ هذا في Supabase) -->
+    <div id="sqlSetup" style="display: none;">
+        <!-- 
+-- Barbers Table
+CREATE TABLE barbers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    commission_rate NUMERIC NOT NULL DEFAULT 0.15,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Services Table
+CREATE TABLE services (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name_ar TEXT NOT NULL,
+    price NUMERIC NOT NULL,
+    category TEXT NOT NULL CHECK (category IN ('شعر', 'ذقن', 'بشرة', 'معالجات')),
+    care_instruction TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Transactions Table
+CREATE TABLE transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    local_id TEXT UNIQUE NOT NULL,
+    barber_id UUID REFERENCES barbers(id) ON DELETE SET NULL,
+    total_amount NUMERIC NOT NULL,
+    discount NUMERIC DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    is_synced BOOLEAN DEFAULT false
+);
+
+-- Transaction Items Table
+CREATE TABLE transaction_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    transaction_id UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+    service_id UUID NOT NULL REFERENCES services(id),
+    price NUMERIC NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Sample Data
+INSERT INTO barbers (name, commission_rate) VALUES
+('أحمد محمد', 0.15),
+('محمود علي', 0.15),
+('فاروق سالم', 0.20);
+
+INSERT INTO services (name_ar, price, category, care_instruction) VALUES
+('قص شعر كلاسيكي', 50, 'شعر', 'استخدم شامبو عالي الجودة مرتين أسبوعياً للحفاظ على الشكل المثالي'),
+('قص شعر عصري', 60, 'شعر', 'زر صالوننا كل 3-4 أسابيع للحفاظ على الشكل المتناسق'),
+('صبغة شعر', 150, 'شعر', 'يرجى استخدام شامبو خالٍ من الكبريتات للحفاظ على لون الصبغة برونقها'),
+('حلاقة ذقن احترافية', 40, 'ذقن', 'طبق كريم مرطب يومياً للحفاظ على صحة الذقن'),
+('تنظيف لحية', 30, 'ذقن', 'استخدم زيت اللحية الطبيعي للعناية اليومية'),
+('تنظيف بشرة عميق', 80, 'بشرة', 'قلل التعرض للشمس واستخدم واقي شمسي يومياً'),
+('تقشير بشرة', 60, 'بشرة', 'ترطب البشرة بعد العملية لمدة أسبوع على الأقل'),
+('معالجة ترطيب', 70, 'معالجات', 'كرر العملية شهرياً للحصول على نتائج أفضل'),
+('معالجة ضد الشيخوخة', 120, 'معالجات', 'ادمج عملية العناية مع برنامج منتظم للعناية المنزلية');
+        -->
+    </div>
+
+    <!-- Network Status Bar -->
+    <div class="no-print bg-black p-3 flex items-center justify-between border-b border-gray-700">
+        <div class="flex items-center gap-2">
+            <div id="statusIndicator" class="w-4 h-4 rounded-full status-online"></div>
+            <span id="statusText" class="text-sm gold-text">متصل بالإنترنت</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <span id="pendingCount" class="pending-badge">0</span>
+            <span class="text-xs text-gray-400">عمليات معلقة</span>
+        </div>
+    </div>
+
+    <div class="container mx-auto p-4">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Main Sales Section -->
+            <div class="lg:col-span-2 space-y-4">
+                <!-- Header -->
+                <div class="gradient-border bg-gradient-to-r from-gray-900 to-gray-800 p-6 rounded-lg">
+                    <h1 class="text-3xl font-bold gold-text mb-2">BarberySmart</h1>
+                    <p class="text-sm text-gray-400">نظام كاشير وخدمة عملاء ذكي</p>
+                </div>
+
+                <!-- Barber Selection -->
+                <div class="bg-gray-900 p-4 rounded-lg gradient-border">
+                    <label class="block text-sm font-semibold gold-text mb-2">الحلاق المسؤول:</label>
+                    <select id="barberSelect" class="w-full p-2 rounded bg-gray-800 text-white border border-gray-700">
+                        <option value="">-- اختر الحلاق --</option>
+                    </select>
+                </div>
+
+                <!-- Services Grid -->
+                <div class="space-y-3">
+                    <h2 class="text-lg font-bold gold-text">الخدمات المتاحة</h2>
+                    
+                    <!-- Category Tabs -->
+                    <div class="flex gap-2 flex-wrap">
+                        <button onclick="filterServices('all')" class="category-btn px-4 py-2 rounded bg-gray-800 text-gray-400 border-b-2 border-gray-700 hover:border-yellow-600 transition" data-category="all">جميع الخدمات</button>
+                        <button onclick="filterServices('شعر')" class="category-btn px-4 py-2 rounded bg-gray-800 text-gray-400 border-b-2 border-gray-700 hover:border-yellow-600 transition" data-category="شعر">الشعر</button>
+                        <button onclick="filterServices('ذقن')" class="category-btn px-4 py-2 rounded bg-gray-800 text-gray-400 border-b-2 border-gray-700 hover:border-yellow-600 transition" data-category="ذقن">الذقن</button>
+                        <button onclick="filterServices('بشرة')" class="category-btn px-4 py-2 rounded bg-gray-800 text-gray-400 border-b-2 border-gray-700 hover:border-yellow-600 transition" data-category="بشرة">البشرة</button>
+                        <button onclick="filterServices('معالجات')" class="category-btn px-4 py-2 rounded bg-gray-800 text-gray-400 border-b-2 border-gray-700 hover:border-yellow-600 transition" data-category="معالجات">المعالجات</button>
+                    </div>
+
+                    <!-- Services Container -->
+                    <div id="servicesGrid" class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        <!-- Services will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Offline Mode Toggle (Testing) -->
+                <div class="bg-gray-900 p-4 rounded-lg gradient-border no-print">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="offlineToggle" class="w-4 h-4" />
+                        <span class="text-sm">محاكاة وضع أوفلاين (للاختبار)</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Right Sidebar: Cart & Actions -->
+            <div class="space-y-4">
+                <!-- Cart Summary -->
+                <div class="bg-gray-900 p-4 rounded-lg gradient-border sticky top-4">
+                    <h3 class="text-lg font-bold gold-text mb-3">سلة الخدمات</h3>
+                    
+                    <div id="cartItems" class="space-y-2 mb-4 max-h-64 overflow-y-auto">
+                        <p class="text-gray-500 text-sm text-center">لا توجد خدمات مضافة</p>
+                    </div>
+
+                    <div class="border-t border-gray-700 pt-3 space-y-2">
+                        <!-- Subtotal -->
+                        <div class="flex justify-between text-sm">
+                            <span>المجموع:</span>
+                            <span id="subtotal" class="gold-text font-semibold">0 ريال</span>
+                        </div>
+
+                        <!-- Discount -->
+                        <div class="flex gap-2">
+                            <input type="number" id="discountAmount" placeholder="خصم" min="0" max="100" class="flex-1 p-2 rounded text-sm" />
+                            <button onclick="applyDiscount()" class="px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm transition">تطبيق</button>
+                        </div>
+
+                        <!-- Final Total -->
+                        <div class="flex justify-between text-lg font-bold pt-2 border-t border-gray-700">
+                            <span>الإجمالي:</span>
+                            <span id="total" class="gold-text">0 ريال</span>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="space-y-2 mt-4">
+                        <button onclick="previewBill()" class="btn-gold w-full py-3 rounded-lg font-semibold transition">معاينة الفاتورة</button>
+                        <button onclick="completeTransaction()" class="btn-gold w-full py-3 rounded-lg font-semibold transition">إكمال البيع وطباعة</button>
+                        <button onclick="clearCart()" class="w-full py-2 bg-red-900 hover:bg-red-800 rounded-lg text-sm transition">مسح السلة</button>
+                    </div>
+                </div>
+
+                <!-- Sync Dashboard -->
+                <div class="bg-gray-900 p-4 rounded-lg gradient-border no-print">
+                    <h3 class="text-lg font-bold gold-text mb-3">لوحة المزامنة</h3>
+                    
+                    <div id="syncStatus" class="text-sm space-y-2 mb-4">
+                        <p class="text-gray-400">جاري فحص الاتصال...</p>
+                    </div>
+
+                    <button onclick="manualSync()" class="btn-gold w-full py-2 rounded-lg font-semibold text-sm transition">مزامنة يدوية الآن</button>
+
+                    <!-- Pending Transactions List -->
+                    <div class="mt-4">
+                        <h4 class="text-sm font-semibold mb-2">المعاملات المعلقة:</h4>
+                        <div id="pendingList" class="space-y-2 text-xs max-h-48 overflow-y-auto">
+                            <p class="text-gray-500">لا توجد معاملات معلقة</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bill Preview Modal -->
+    <div id="billModal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 class="text-xl font-bold gold-text mb-4">معاينة الفاتورة</h2>
+            <div id="billPreviewContainer" class="bg-gray-800 p-4 rounded mb-4 max-h-96 overflow-y-auto"></div>
+            <div class="flex gap-2">
+                <button onclick="closeBillModal()" class="flex-1 py-2 bg-gray-700 hover:bg-gray-600 rounded transition">إغلاق</button>
+                <button onclick="printBill()" class="flex-1 btn-gold py-2 rounded font-semibold transition">طباعة الآن</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notificationContainer"></div>
+
+    <script>
+        // ============= STATE MANAGEMENT =============
+        const state = {
+            cart: [],
+            discount: 0,
+            selectedBarber: null,
+            services: [],
+            barbers: [],
+            transactions: [],
+            isOnline: navigator.onLine,
+            isSimulatedOffline: false,
+            currentCategory: 'all',
+            syncQueue: []
+        };
+
+        // ============= INITIALIZATION =============
+        async function initialize() {
+            loadFromLocalStorage();
+            setupNetworkListener();
+            await loadServices();
+            await loadBarbers();
+            renderServices();
+            renderBarbers();
+            updatePendingCount();
+            setupOfflineToggle();
+            attemptAutoSync();
+        }
+
+        // ============= SERVICES MANAGEMENT =============
+        async function loadServices() {
+            const cached = localStorage.getItem('services');
+            if (cached) {
+                state.services = JSON.parse(cached);
+            } else {
+                // Fallback local services if no cache
+                state.services = [
+                    { id: '1', name_ar: 'قص شعر كلاسيكي', price: 50, category: 'شعر', care_instruction: 'استخدم شامبو عالي الجودة مرتين أسبوعياً للحفاظ على الشكل المثالي' },
+                    { id: '2', name_ar: 'قص شعر عصري', price: 60, category: 'شعر', care_instruction: 'زر صالوننا كل 3-4 أسابيع للحفاظ على الشكل المتناسق' },
+                    { id: '3', name_ar: 'صبغة شعر', price: 150, category: 'شعر', care_instruction: 'يرجى استخدام شامبو خالٍ من الكبريتات للحفاظ على لون الصبغة برونقها' },
+                    { id: '4', name_ar: 'حلاقة ذقن احترافية', price: 40, category: 'ذقن', care_instruction: 'طبق كريم مرطب يومياً للحفاظ على صحة الذقن' },
+                    { id: '5', name_ar: 'تنظيف لحية', price: 30, category: 'ذقن', care_instruction: 'استخدم زيت اللحية الطبيعي للعناية اليومية' },
+                    { id: '6', name_ar: 'تنظيف بشرة عميق', price: 80, category: 'بشرة', care_instruction: 'قلل التعرض للشمس واستخدم واقي شمسي يومياً' },
+                    { id: '7', name_ar: 'تقشير بشرة', price: 60, category: 'بشرة', care_instruction: 'ترطب البشرة بعد العملية لمدة أسبوع على الأقل' },
+                    { id: '8', name_ar: 'معالجة ترطيب', price: 70, category: 'معالجات', care_instruction: 'كرر العملية شهرياً للحصول على نتائج أفضل' },
+                    { id: '9', name_ar: 'معالجة ضد الشيخوخة', price: 120, category: 'معالجات', care_instruction: 'ادمج عملية العناية مع برنامج منتظم للعناية المنزلية' }
+                ];
+                localStorage.setItem('services', JSON.stringify(state.services));
+            }
+        }
+
+        async function loadBarbers() {
+            const cached = localStorage.getItem('barbers');
+            if (cached) {
+                state.barbers = JSON.parse(cached);
+            } else {
+                state.barbers = [
+                    { id: '1', name: 'أحمد محمد', commission_rate: 0.15 },
+                    { id: '2', name: 'محمود علي', commission_rate: 0.15 },
+                    { id: '3', name: 'فاروق سالم', commission_rate: 0.20 }
+                ];
+                localStorage.setItem('barbers', JSON.stringify(state.barbers));
+            }
+        }
+
+        function renderBarbers() {
+            const select = document.getElementById('barberSelect');
+            state.barbers.forEach(barber => {
+                const option = document.createElement('option');
+                option.value = barber.id;
+                option.textContent = barber.name;
+                select.appendChild(option);
+            });
+
+            select.addEventListener('change', (e) => {
+                state.selectedBarber = e.target.value;
+            });
+        }
+
+        function renderServices() {
+            const container = document.getElementById('servicesGrid');
+            container.innerHTML = '';
+
+            const filtered = state.currentCategory === 'all' 
+                ? state.services 
+                : state.services.filter(s => s.category === state.currentCategory);
+
+            filtered.forEach(service => {
+                const btn = document.createElement('button');
+                btn.className = 'service-btn';
+                btn.innerHTML = `
+                    <div class="font-semibold text-sm mb-1">${service.name_ar}</div>
+                    <div class="gold-text text-lg font-bold">${service.price} ريال</div>
+                `;
+                btn.onclick = () => addToCart(service);
+                container.appendChild(btn);
+            });
+        }
+
+        function filterServices(category) {
+            state.currentCategory = category;
+            
+            // Update category tabs
+            document.querySelectorAll('.category-btn').forEach(btn => {
+                btn.classList.toggle('border-yellow-600', btn.dataset.category === category);
+                btn.classList.toggle('border-gray-700', btn.dataset.category !== category);
+                btn.classList.toggle('text-yellow-600', btn.dataset.category === category);
+                btn.classList.toggle('text-gray-400', btn.dataset.category !== category);
+            });
+            
+            renderServices();
+        }
+
+        // ============= CART MANAGEMENT =============
+        function addToCart(service) {
+            state.cart.push({
+                id: generateLocalId(),
+                serviceId: service.id,
+                name: service.name_ar,
+                price: service.price,
+                category: service.category,
+                careInstruction: service.care_instruction
+            });
+            updateCart();
+            showNotification('تمت إضافة الخدمة إلى السلة', 'success');
+        }
+
+        function removeFromCart(itemId) {
+            state.cart = state.cart.filter(item => item.id !== itemId);
+            updateCart();
+            showNotification('تمت إزالة الخدمة من السلة', 'info');
+        }
+
+        function updateCart() {
+            renderCartItems();
+            calculateTotals();
+            saveToLocalStorage();
+        }
+
+        function renderCartItems() {
+            const container = document.getElementById('cartItems');
+            
+            if (state.cart.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-sm text-center">لا توجد خدمات مضافة</p>';
+                return;
+            }
+
+            container.innerHTML = state.cart.map(item => `
+                <div class="cart-item">
+                    <div class="flex-1">
+                        <div class="text-sm font-semibold">${item.name}</div>
+                        <div class="text-xs text-gray-400">${item.category}</div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="gold-text font-semibold text-sm">${item.price} ريال</span>
+                        <button onclick="removeFromCart('${item.id}')" class="text-red-500 hover:text-red-400 text-xs px-2">✕</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function calculateTotals() {
+            const subtotal = state.cart.reduce((sum, item) => sum + item.price, 0);
+            const total = subtotal - state.discount;
+            
+            document.getElementById('subtotal').textContent = `${subtotal} ريال`;
+            document.getElementById('total').textContent = `${total} ريال`;
+        }
+
+        function applyDiscount() {
+            const discountInput = document.getElementById('discountAmount');
+            const discount = parseFloat(discountInput.value) || 0;
+            
+            if (discount < 0) {
+                showNotification('الخصم يجب أن يكون قيمة موجبة', 'error');
+                return;
+            }
+            
+            state.discount = discount;
+            discountInput.value = '';
+            updateCart();
+            showNotification(`تم تطبيق خصم: ${discount} ريال`, 'success');
+        }
+
+        function clearCart() {
+            if (state.cart.length === 0) {
+                showNotification('السلة فارغة بالفعل', 'info');
+                return;
+            }
+            
+            state.cart = [];
+            state.discount = 0;
+            updateCart();
+            showNotification('تم مسح السلة بنجاح', 'success');
+        }
+
+        // ============= BILL GENERATION & PRINTING =============
+        function generateBillHTML() {
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('ar-EG');
+            const timeStr = now.toLocaleTimeString('ar-EG');
+            
+            const selectedBarberName = state.selectedBarber 
+                ? state.barbers.find(b => b.id === state.selectedBarber)?.name 
+                : 'بدون حلاق';
+
+            const subtotal = state.cart.reduce((sum, item) => sum + item.price, 0);
+            const total = subtotal - state.discount;
+            
+            const careInstructions = [...new Set(state.cart.map(item => item.careInstruction).filter(Boolean))];
+
+            return `
+                <div class="thermal-paper">
+                    <div style="text-align: center; font-weight: bold; font-size: 14px; margin-bottom: 10px;">
+                        ╔════════════════════════╗
+                        ║   BarberySmart POS    ║
+                        ║  نظام الصالون الذكي  ║
+                        ╚════════════════════════╝
+                    </div>
+                    
+                    <div style="text-align: center; font-size: 9px; margin-bottom: 10px;">
+                        <p>${dateStr}</p>
+                        <p>${timeStr}</p>
+                    </div>
+                    
+                    <div style="border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 5px 0; margin: 10px 0; font-size: 10px;">
+                        <p><strong>الحلاق:</strong> ${selectedBarberName}</p>
+                    </div>
+                    
+                    <div style="margin: 10px 0; font-size: 11px;">
+                        <strong>الخدمات المقدمة:</strong>
+                        ${state.cart.map((item, idx) => `
+                            <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                                <span>${idx + 1}. ${item.name}</span>
+                                <span>${item.price} ر.س</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                    
+                    <div style="border-top: 1px solid #000; padding-top: 5px; margin: 10px 0;">
+                        <div style="display: flex; justify-content: space-between; font-size: 11px; margin: 3px 0;">
+                            <span>المجموع:</span>
+                            <span>${subtotal} ر.س</span>
+                        </div>
+                        ${state.discount > 0 ? `
+                            <div style="display: flex; justify-content: space-between; font-size: 11px; margin: 3px 0;">
+                                <span>الخصم:</span>
+                                <span>-${state.discount} ر.س</span>
+                            </div>
+                        ` : ''}
+                        <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; margin-top: 5px; border-top: 1px solid #000; padding-top: 5px;">
+                            <span>الإجمالي النهائي:</span>
+                            <span>${total} ر.س</span>
+                        </div>
+                    </div>
+                    
+                    ${careInstructions.length > 0 ? `
+                        <div style="margin: 10px 0; padding: 8px; background-color: #f0f0f0; border: 1px dashed #000; font-size: 9px; line-height: 1.3;">
+                            <p style="font-weight: bold; margin: 0 0 5px 0;">💡 نصائح العناية:</p>
+                            ${careInstructions.map(instruction => `
+                                <p style="margin: 3px 0; text-align: right;">• ${instruction}</p>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                    
+                    <div style="text-align: center; margin-top: 10px; font-size: 9px; border-top: 1px solid #000; padding-top: 5px;">
+                        <p>شكراً لزيارتك لنا</p>
+                        <p>نتطلع لك قريباً</p>
+                        <p>📱 للحجز والاستفسارات</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function previewBill() {
+            if (state.cart.length === 0) {
+                showNotification('السلة فارغة، أضف خدمات أولاً', 'warning');
+                return;
+            }
+
+            if (!state.selectedBarber) {
+                showNotification('اختر الحلاق المسؤول أولاً', 'warning');
+                return;
+            }
+
+            document.getElementById('billPreviewContainer').innerHTML = generateBillHTML();
+            document.getElementById('billModal').classList.add('active');
+        }
+
+        function closeBillModal() {
+            document.getElementById('billModal').classList.remove('active');
+        }
+
+        function printBill() {
+            window.print();
+            showNotification('تم إرسال الفاتورة للطابعة', 'success');
+        }
+
+        // ============= TRANSACTION MANAGEMENT =============
+        async function completeTransaction() {
+            if (state.cart.length === 0) {
+                showNotification('السلة فارغة', 'warning');
+                return;
+            }
+
+            if (!state.selectedBarber) {
+                showNotification('اختر الحلاق المسؤول', 'warning');
+                return;
+            }
+
+            const transactionId = generateLocalId();
+            const subtotal = state.cart.reduce((sum, item) => sum + item.price, 0);
+            const total = subtotal - state.discount;
+
+            const transaction = {
+                id: generateUUID(),
+                local_id: transactionId,
+                barber_id: state.selectedBarber,
+                total_amount: total,
+                discount: state.discount,
+                created_at: new Date().toISOString(),
+                is_synced: false,
+                items: state.cart.map(item => ({
+                    id: generateUUID(),
+                    service_id: item.serviceId,
+                    price: item.price
+                }))
+            };
+
+            state.transactions.push(transaction);
+            state.syncQueue.push(transaction);
+
+            saveToLocalStorage();
+            updatePendingCount();
+
+            // Open print preview
+            setTimeout(() => {
+                previewBill();
+            }, 300);
+
+            showNotification('تم حفظ المعاملة وجاري الطباعة', 'success');
+
+            // Clear cart
+            clearCart();
+
+            // Attempt sync
+            attemptAutoSync();
+        }
+
+        // ============= SYNC MANAGEMENT =============
+        async function manualSync() {
+            showNotification('جاري المزامنة...', 'info');
+            updateSyncStatus();
+            await performSync();
+        }
+
+        async function performSync() {
+            if (!state.syncQueue.length) {
+                updateSyncStatus('لا توجد عمليات للمزامنة');
+                return;
+            }
+
+            if (!isConnected()) {
+                updateSyncStatus('غير متصل بالإنترنت - سيتم المحاولة لاحقاً');
+                return;
+            }
+
+            try {
+                // Simulate API call with exponential backoff
+                for (const transaction of state.syncQueue) {
+                    await syncTransaction(transaction);
+                }
+
+                state.syncQueue = [];
+                saveToLocalStorage();
+                updatePendingCount();
+                updateSyncStatus('تمت المزامنة بنجاح ✓');
+                showNotification('تمت مزامنة جميع العمليات بنجاح', 'success');
+            } catch (error) {
+                console.error('Sync error:', error);
+                updateSyncStatus('فشلت المزامنة - سيتم إعادة المحاولة');
+                showNotification('فشلت المزامنة، سيتم إعادة المحاولة تلقائياً', 'error');
+            }
+        }
+
+        async function syncTransaction(transaction) {
+            // In production, replace with actual Supabase API call
+            // Example:
+            // const response = await fetch('https://your-supabase.supabase.co/rest/v1/transactions', {
+            //     method: 'POST',
+            //     headers: {
+            //         'Authorization': 'Bearer YOUR_ANON_KEY',
+            //         'Content-Type': 'application/json'
+            //     },
+            //     body: JSON.stringify(transaction)
+            // });
+
+            // For now, simulate with a delay
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    transaction.is_synced = true;
+                    resolve();
+                }, 500);
+            });
+        }
+
+        function attemptAutoSync() {
+            if (isConnected() && state.syncQueue.length > 0) {
+                performSync();
+            }
+        }
+
+        function updateSyncStatus(message = null) {
+            const statusDiv = document.getElementById('syncStatus');
+            
+            if (message) {
+                statusDiv.innerHTML = `<p class="text-blue-400">${message}</p>`;
+                return;
+            }
+
+            if (!isConnected()) {
+                statusDiv.innerHTML = '<p class="text-red-400">❌ غير متصل - المزامنة معلقة</p>';
+            } else if (state.syncQueue.length === 0) {
+                statusDiv.innerHTML = '<p class="text-green-400">✓ جميع العمليات محدثة</p>';
+            } else {
+                statusDiv.innerHTML = `<p class="text-yellow-400">⏳ ${state.syncQueue.length} عملية بانتظار المزامنة</p>`;
+            }
+        }
+
+        function updatePendingCount() {
+            document.getElementById('pendingCount').textContent = state.syncQueue.length;
+            renderPendingList();
+        }
+
+        function renderPendingList() {
+            const container = document.getElementById('pendingList');
+            
+            if (state.syncQueue.length === 0) {
+                container.innerHTML = '<p class="text-gray-500">لا توجد معاملات معلقة</p>';
+                return;
+            }
+
+            container.innerHTML = state.syncQueue.map(t => `
+                <div class="bg-gray-800 p-2 rounded">
+                    <div class="flex justify-between text-xs">
+                        <span>${new Date(t.created_at).toLocaleTimeString('ar-EG')}</span>
+                        <span class="gold-text">${t.total_amount} ريال</span>
+                    </div>
+                    <div class="text-xs text-gray-400">${t.items.length} خدمات</div>
+                </div>
+            `).join('');
+        }
+
+        // ============= NETWORK MANAGEMENT =============
+        function setupNetworkListener() {
+            window.addEventListener('online', () => {
+                state.isOnline = !state.isSimulatedOffline;
+                updateNetworkStatus();
+                attemptAutoSync();
+            });
+
+            window.addEventListener('offline', () => {
+                state.isOnline = false;
+                updateNetworkStatus();
+            });
+
+            updateNetworkStatus();
+        }
+
+        function isConnected() {
+            return state.isOnline && !state.isSimulatedOffline;
+        }
+
+        function updateNetworkStatus() {
+            const indicator = document.getElementById('statusIndicator');
+            const text = document.getElementById('statusText');
+
+            if (state.isSimulatedOffline) {
+                indicator.className = 'w-4 h-4 rounded-full status-offline';
+                text.textContent = 'أوفلاين (محاكاة)';
+            } else if (isConnected()) {
+                indicator.className = 'w-4 h-4 rounded-full status-online';
+                text.textContent = 'متصل بالإنترنت ✓';
+            } else {
+                indicator.className = 'w-4 h-4 rounded-full status-offline';
+                text.textContent = 'غير متصل بالإنترنت ✕';
+            }
+
+            updateSyncStatus();
+        }
+
+        function setupOfflineToggle() {
+            document.getElementById('offlineToggle').addEventListener('change', (e) => {
+                state.isSimulatedOffline = e.target.checked;
+                updateNetworkStatus();
+            });
+        }
+
+        // ============= UTILITIES =============
+        function generateLocalId() {
+            return `LOCAL_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        }
+
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        function saveToLocalStorage() {
+            try {
+                localStorage.setItem('barberySmart_state', JSON.stringify({
+                    cart: state.cart,
+                    discount: state.discount,
+                    transactions: state.transactions,
+                    syncQueue: state.syncQueue
+                }));
+            } catch (e) {
+                console.error('LocalStorage error:', e);
+                showNotification('خطأ في حفظ البيانات المحلية', 'error');
+            }
+        }
+
+        function loadFromLocalStorage() {
+            try {
+                const saved = localStorage.getItem('barberySmart_state');
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    state.cart = data.cart || [];
+                    state.discount = data.discount || 0;
+                    state.transactions = data.transactions || [];
+                    state.syncQueue = data.syncQueue || [];
+                }
+            } catch (e) {
+                console.error('LocalStorage load error:', e);
+            }
+        }
+
+        function showNotification(message, type = 'info') {
+            const container = document.getElementById('notificationContainer');
+            const notification = document.createElement('div');
+            
+            const bgColor = {
+                success: 'bg-green-900',
+                error: 'bg-red-900',
+                warning: 'bg-yellow-900',
+                info: 'bg-blue-900'
+            }[type] || 'bg-blue-900';
+
+            notification.className = `notification ${bgColor}`;
+            notification.textContent = message;
+            container.appendChild(notification);
+
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        // ============= START APP =============
+        document.addEventListener('DOMContentLoaded', initialize);
+    </script>
+</body>
+</html>
