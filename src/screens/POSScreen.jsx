@@ -7,6 +7,7 @@ import { EventTypes } from '../events/eventTypes';
 import SyncIndicator from '../components/SyncIndicator';
 import ReceiptPrinter from '../components/ReceiptPrinter';
 import { getCombinedCareTips } from '../core/SmartCareEngine';
+import DashboardExample from '../components/DashboardExample';
 
 export default function POSScreen() {
   const currentBranchId = 'branch-main-01'; 
@@ -277,6 +278,10 @@ export default function POSScreen() {
         shiftId={currentShiftId} 
         tips={lastTips} 
       />
+
+      <div className="print:hidden mt-8 border-t border-[#D4AF37]/50 pt-8">
+        <DashboardExample shiftId={currentShiftId} />
+      </div>
 
     </div>
   );
