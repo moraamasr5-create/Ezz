@@ -5,74 +5,41 @@ import { createEvent } from '../events/eventManager';
 import { syncPendingEvents } from '../core/syncWorker';
 import { EventTypes } from '../events/eventTypes';
 import SyncIndicator from '../components/SyncIndicator';
+import ReceiptPrinter from '../components/ReceiptPrinter';
+import { getCombinedCareTips } from '../core/SmartCareEngine';
 
 export default function POSScreen() {
   const currentBranchId = 'branch-main-01'; 
-  const currentShiftId = 'shift-20240616-01'; // في التطبيق الحقيقي سيتم توليده يومياً
+  const currentShiftId = 'shift-20240616-01'; 
 
-  // تحديد حالة الوردية محلياً (يمكن قراءتها من آخر حدث في Dexie)
-  const [shiftState, setShiftState] = useState('CLOSED'); // OPEN | CLOSING | CLOSED
+  const [shiftState, setShiftState] = useState('CLOSED'); 
   const [message, setMessage] = useState('');
+  
+  // Cart & Customer State
+  const [cart, setCart] = useState([]);
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
 
-  // جلب إجمالي المبيعات محلياً من Dexie بناءً على أحداث الخدمة للوردية الحالية
+  // Invoice State for Printing
+  const [lastInvoice, setLastInvoice] = useState(null);
+  const [lastTips, setLastTips] = useState([]);
+
+  // جلب الخدمات المرجعية من Dexie
+  const availableServices = useLiveQuery(() => db.services.toArray(), []) || [];
+
+  // إجمالي الوردية (يُقرأ من الأحداث المحفوظة)
   const salesEvents = useLiveQuery(
     () => db.events
       .where('shift_id').equals(currentShiftId)
-      .filter(e => e.event_type === EventTypes.SERVICE_ADDED)
+      .filter(e => e.event_type === EventTypes.INVOICE_CREATED)
       .toArray(),
     [currentShiftId]
   ) || [];
+  const shiftTotalSales = salesEvents.reduce((total, event) => total + (event.payload?.total || 0), 0);
 
-  const totalSales = salesEvents.reduce((total, event) => total + (event.payload?.price || 0), 0);
+  // إجمالي السلة الحالية
+  const cartTotal = cart.reduce((total, item) => total + item.price, 0);
 
-  // دوال التعامل مع الأحداث (كل زر يكتب حدث فقط)
-  
-  const handleOpenShift = async () => {
-    await createEvent(EventTypes.SHIFT_OPEN, { opened_by: 'Ahmed' }, currentBranchId, currentShiftId);
-    setShiftState('OPEN');
-    setMessage('✅ تم فتح الوردية بنجاح');
-    syncPendingEvents();
-  };
-
-  const handleAddService = async (serviceName, price) => {
-    if (shiftState !== 'OPEN') return;
-    
-    await createEvent(EventTypes.SERVICE_ADDED, { 
-      service_name: serviceName, 
-      price: price,
-      barber_id: 'barber-01'
-    }, currentBranchId, currentShiftId);
-    
-    setMessage(`🛒 تمت إضافة ${serviceName}`);
-    syncPendingEvents();
-  };
-
-  const handleStartClosing = async () => {
-    // الانتقال لمرحلة المراجعة (CLOSING) يمنع إضافة مبيعات جديدة
-    await createEvent(EventTypes.SHIFT_CLOSING, { 
-      expected_cash: totalSales 
-    }, currentBranchId, currentShiftId);
-    
-    setShiftState('CLOSING');
-    setMessage('🔒 الوردية في وضع الإغلاق للمراجعة...');
-    syncPendingEvents();
-  };
-
-  const handleConfirmClose = async () => {
-    // تأكيد الإغلاق النهائي (CLOSED)
-    // لاحظ: n8n هو من سيحسب التقرير النهائي من السحابة، لكننا نرسل ملخصاً صغيراً 
-    // كـ payload للحدث (للعرض المحلي لو أردنا، رغم أن n8n لا يعتمد عليه).
-    await createEvent(EventTypes.SHIFT_CLOSED, { 
-      closed_by: 'Ahmed',
-      local_computed_total: totalSales
-    }, currentBranchId, currentShiftId);
-    
-    setShiftState('CLOSED');
-    setMessage('🛑 تم إنهاء الوردية بنجاح');
-    syncPendingEvents();
-  };
-
-  // إخفاء الرسائل بعد 3 ثواني
   useEffect(() => {
     if (message) {
       const timer = setTimeout(() => setMessage(''), 3000);
@@ -80,100 +47,237 @@ export default function POSScreen() {
     }
   }, [message]);
 
+  // إدارة الوردية
+  const handleOpenShift = async () => {
+    await createEvent(EventTypes.SHIFT_OPEN, { opened_by: 'Ahmed' }, currentBranchId, currentShiftId);
+    setShiftState('OPEN');
+    setMessage('✅ تم فتح الوردية بنجاح');
+    syncPendingEvents();
+  };
+
+  const handleStartClosing = async () => {
+    await createEvent(EventTypes.SHIFT_CLOSING, { expected_cash: shiftTotalSales }, currentBranchId, currentShiftId);
+    setShiftState('CLOSING');
+    setMessage('🔒 الوردية في وضع الإغلاق للمراجعة...');
+    syncPendingEvents();
+  };
+
+  const handleConfirmClose = async () => {
+    await createEvent(EventTypes.SHIFT_CLOSED, { closed_by: 'Ahmed', local_computed_total: shiftTotalSales }, currentBranchId, currentShiftId);
+    setShiftState('CLOSED');
+    setMessage('🛑 تم إنهاء الوردية بنجاح');
+    syncPendingEvents();
+  };
+
+  // إدارة السلة (لا تكتب أحداث فورية، فقط عند الدفع)
+  const addToCart = (service) => {
+    if (shiftState !== 'OPEN') return;
+    setCart([...cart, service]);
+  };
+
+  const removeFromCart = (index) => {
+    const newCart = [...cart];
+    newCart.splice(index, 1);
+    setCart(newCart);
+  };
+
+  // إتمام البيع وإنشاء حدث الفاتورة
+  const handleCheckout = async () => {
+    if (cart.length === 0) return;
+
+    // تجهيز تفاصيل الفاتورة
+    const invoicePayload = {
+      customer_name: customerName,
+      customer_phone: customerPhone,
+      items: cart,
+      total: cartTotal,
+    };
+
+    // 1. توليد الحدث وحفظه في Dexie
+    const newEvent = await createEvent(EventTypes.INVOICE_CREATED, invoicePayload, currentBranchId, currentShiftId);
+    
+    // تسجيل العميل إذا أدخل بياناته
+    if (customerName || customerPhone) {
+      await createEvent(EventTypes.CUSTOMER_REGISTERED, {
+        name: customerName,
+        phone: customerPhone,
+        invoice_id: newEvent.id
+      }, currentBranchId, currentShiftId);
+    }
+
+    // 2. استخدام محرك النصائح الذكي
+    const serviceIds = cart.map(item => item.id);
+    const tips = getCombinedCareTips(serviceIds);
+
+    // 3. تجهيز الفاتورة للطباعة
+    setLastInvoice(newEvent.payload);
+    setLastTips(tips);
+
+    // 4. تصفير السلة وتحديث الواجهة
+    setCart([]);
+    setCustomerName('');
+    setCustomerPhone('');
+    setMessage('💰 تم الدفع بنجاح! جاري الطباعة...');
+    syncPendingEvents();
+
+    // 5. استدعاء أمر الطباعة (سيعتمد على الـ @media print في الـ CSS)
+    setTimeout(() => {
+      window.print();
+    }, 500);
+  };
+
   return (
-    <div className="p-6 bg-gray-900 text-white min-h-screen" dir="rtl">
-      {/* الهيدر مع مؤشر المزامنة */}
-      <div className="flex justify-between items-center border-b border-gray-700 pb-4 mb-6">
-        <div>
-          <h1 className="text-3xl text-yellow-500 font-bold">شاشة الكاشير</h1>
-          <p className="text-gray-400 mt-1">وردية: {currentShiftId}</p>
+    <div className="p-4 md:p-6 min-h-screen" dir="rtl">
+      {/* إخفاء هذه العناصر عند الطباعة */}
+      <div className="print:hidden">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-center border-b border-[#D4AF37] pb-4 mb-6">
+          <div>
+            <h1 className="text-3xl text-[#D4AF37] font-bold">صالون العز الفاخر</h1>
+            <p className="text-[#B08D57] mt-1">الوردية: {currentShiftId} | إجمالي الكاشير: {shiftTotalSales} ر.س</p>
+          </div>
+          <div className="mt-4 md:mt-0">
+            <SyncIndicator />
+          </div>
         </div>
-        <SyncIndicator />
+
+        {message && (
+          <div className="mb-6 p-4 bg-[#B08D57]/20 border border-[#D4AF37] text-[#D4AF37] rounded-lg">
+            {message}
+          </div>
+        )}
+
+        {shiftState === 'CLOSED' && (
+          <div className="text-center py-20">
+            <h2 className="text-2xl mb-4 text-[#B08D57]">الوردية مغلقة حالياً</h2>
+            <button 
+              onClick={handleOpenShift}
+              className="bg-[#D4AF37] hover:bg-[#B08D57] text-[#121212] px-8 py-4 rounded-lg text-xl font-bold min-h-[48px] min-w-[48px] transition-colors"
+            >
+              فتح الوردية 🔓
+            </button>
+          </div>
+        )}
+
+        {shiftState === 'OPEN' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* قسم الخدمات (اليمين) */}
+            <div className="lg:col-span-2">
+              <h3 className="text-xl text-[#D4AF37] mb-4">الخدمات المتاحة</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {availableServices.map(service => (
+                  <button 
+                    key={service.id}
+                    onClick={() => addToCart(service)}
+                    className="bg-[#1a1a1a] border border-[#D4AF37]/50 hover:border-[#D4AF37] hover:bg-[#D4AF37]/10 p-6 rounded-lg text-lg flex flex-col items-center justify-center min-h-[100px] min-w-[48px] transition-all touch-manipulation"
+                  >
+                    <span className="font-bold text-white mb-2">{service.name}</span>
+                    <span className="text-[#B08D57]">{service.price} ر.س</span>
+                  </button>
+                ))}
+              </div>
+              
+              {/* زر قفل الوردية */}
+              <div className="mt-12 border-t border-[#D4AF37]/30 pt-6">
+                <button 
+                  onClick={handleStartClosing}
+                  className="bg-red-900/50 hover:bg-red-900 text-red-200 border border-red-800 px-6 py-3 rounded-lg font-bold min-h-[48px] min-w-[48px]"
+                >
+                  قفل الوردية 🔒
+                </button>
+              </div>
+            </div>
+
+            {/* قسم السلة والعميل (اليسار) */}
+            <div className="bg-[#1a1a1a] p-6 rounded-xl border border-[#B08D57] flex flex-col justify-between h-full">
+              <div>
+                <h3 className="text-xl text-[#D4AF37] mb-4 border-b border-[#D4AF37]/30 pb-2">بيانات العميل</h3>
+                <div className="space-y-3 mb-6">
+                  <input 
+                    type="text" 
+                    placeholder="اسم العميل (اختياري)" 
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    className="w-full bg-[#121212] border border-[#B08D57] rounded p-3 text-white focus:outline-none focus:border-[#D4AF37] min-h-[48px]"
+                  />
+                  <input 
+                    type="tel" 
+                    placeholder="رقم الجوال (اختياري)" 
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    className="w-full bg-[#121212] border border-[#B08D57] rounded p-3 text-white focus:outline-none focus:border-[#D4AF37] min-h-[48px]"
+                  />
+                </div>
+
+                <h3 className="text-xl text-[#D4AF37] mb-4 border-b border-[#D4AF37]/30 pb-2">سلة الخدمات</h3>
+                {cart.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">السلة فارغة</p>
+                ) : (
+                  <ul className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                    {cart.map((item, index) => (
+                      <li key={index} className="flex justify-between items-center bg-[#121212] p-3 rounded border border-[#B08D57]/30">
+                        <span>{item.name}</span>
+                        <div className="flex items-center">
+                          <span className="text-[#D4AF37] ml-4">{item.price} ر.س</span>
+                          <button onClick={() => removeFromCart(index)} className="text-red-500 font-bold hover:text-red-400 p-2 min-h-[48px] min-w-[48px]">X</button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              
+              <div className="mt-6 pt-4 border-t border-[#D4AF37]">
+                <div className="flex justify-between items-center text-2xl font-bold mb-6">
+                  <span>الإجمالي:</span>
+                  <span className="text-[#D4AF37]">{cartTotal} ر.س</span>
+                </div>
+                <button 
+                  onClick={handleCheckout}
+                  disabled={cart.length === 0}
+                  className="w-full bg-[#D4AF37] hover:bg-[#B08D57] disabled:bg-gray-600 disabled:text-gray-400 text-[#121212] py-4 rounded-lg font-bold text-xl min-h-[48px] min-w-[48px] transition-colors"
+                >
+                  تأكيد وطباعة 🖨️
+                </button>
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {shiftState === 'CLOSING' && (
+          <div className="bg-[#1a1a1a] p-8 rounded-lg border border-[#D4AF37] max-w-xl mx-auto text-center mt-10">
+            <h2 className="text-2xl text-[#D4AF37] font-bold mb-6">مراجعة إغلاق الوردية</h2>
+            <p className="text-gray-300 text-lg mb-8">
+              الكاشير المتوقع: <span className="font-bold text-3xl text-white mx-2">{shiftTotalSales}</span> ر.س
+            </p>
+            <div className="flex gap-4 justify-center">
+              <button 
+                onClick={() => setShiftState('OPEN')} 
+                className="px-6 py-4 bg-gray-700 hover:bg-gray-600 rounded-lg text-white font-bold min-h-[48px] min-w-[48px]"
+              >
+                تراجع ↩️
+              </button>
+              <button 
+                onClick={handleConfirmClose}
+                className="px-6 py-4 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold min-h-[48px] min-w-[48px]"
+              >
+                تأكيد الإغلاق 🛑
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* منطقة الرسائل */}
-      {message && (
-        <div className="mb-6 p-4 bg-gray-800 border border-yellow-600 text-yellow-500 rounded-lg">
-          {message}
-        </div>
-      )}
+      {/* مكون الطباعة يظهر فقط عند الضغط على الطباعة */}
+      <ReceiptPrinter 
+        invoice={lastInvoice} 
+        branchId={currentBranchId} 
+        shiftId={currentShiftId} 
+        tips={lastTips} 
+      />
 
-      {/* حالة الوردية مغلقة */}
-      {shiftState === 'CLOSED' && (
-        <div className="text-center py-20">
-          <h2 className="text-2xl mb-4 text-gray-400">الوردية مغلقة حالياً</h2>
-          <button 
-            onClick={handleOpenShift}
-            className="bg-green-600 hover:bg-green-500 text-white px-8 py-3 rounded-lg text-xl font-bold"
-          >
-            فتح وردية جديدة 🔓
-          </button>
-        </div>
-      )}
-
-      {/* حالة الوردية مفتوحة (البيع متاح) */}
-      {shiftState === 'OPEN' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* قسم المبيعات */}
-          <div className="col-span-2 grid grid-cols-2 gap-4">
-            <button onClick={() => handleAddService('حلاقة شعر', 50)} className="bg-gray-800 border border-gray-600 hover:border-yellow-500 p-6 rounded-lg text-xl">
-              ✂️ حلاقة شعر (50)
-            </button>
-            <button onClick={() => handleAddService('حلاقة ذقن', 30)} className="bg-gray-800 border border-gray-600 hover:border-yellow-500 p-6 rounded-lg text-xl">
-              🧔 حلاقة ذقن (30)
-            </button>
-            <button onClick={() => handleAddService('تنظيف بشرة', 100)} className="bg-gray-800 border border-gray-600 hover:border-yellow-500 p-6 rounded-lg text-xl">
-              💆‍♂️ تنظيف بشرة (100)
-            </button>
-            <button onClick={() => handleAddService('صبغة', 80)} className="bg-gray-800 border border-gray-600 hover:border-yellow-500 p-6 rounded-lg text-xl">
-              🎨 صبغة (80)
-            </button>
-          </div>
-
-          {/* لوحة التحكم الجانبية */}
-          <div className="bg-gray-800 p-6 rounded-lg flex flex-col justify-between border border-gray-700">
-            <div>
-              <h3 className="text-xl text-gray-300 mb-4">ملخص الوردية الحالي</h3>
-              <div className="flex justify-between items-center text-2xl font-bold text-yellow-500">
-                <span>الإجمالي:</span>
-                <span>{totalSales} ريال</span>
-              </div>
-              <p className="text-gray-500 text-sm mt-2">عدد العمليات: {salesEvents.length}</p>
-            </div>
-            
-            <button 
-              onClick={handleStartClosing}
-              className="w-full bg-red-900 hover:bg-red-800 text-red-100 border border-red-700 px-4 py-3 rounded-lg font-bold mt-8"
-            >
-              قفل الوردية 🔒
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* حالة الوردية قيد الإغلاق (مراجعة) */}
-      {shiftState === 'CLOSING' && (
-        <div className="bg-gray-800 p-8 rounded-lg border border-yellow-600 max-w-xl mx-auto text-center mt-10">
-          <h2 className="text-2xl text-yellow-500 font-bold mb-6">مراجعة إغلاق الوردية</h2>
-          <p className="text-gray-300 text-lg mb-8">
-            الكاشير المتوقع في الصندوق: <span className="font-bold text-2xl text-white mx-2">{totalSales}</span> ريال
-          </p>
-          <div className="flex gap-4 justify-center">
-            <button 
-              onClick={() => setShiftState('OPEN')} // عودة للفتح في حال وجود خطأ
-              className="px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg text-white"
-            >
-              تراجع ↩️
-            </button>
-            <button 
-              onClick={handleConfirmClose}
-              className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold"
-            >
-              تأكيد الإغلاق النهائي 🛑
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -5,5 +5,37 @@
 body {
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;
-  background-color: #111827; /* gray-900 */
+  /* اللون الأساسي للمشروع Dark Luxury */
+  background-color: #121212; 
+  color: white;
+}
+
+/* ========================================== */
+/* إعدادات الطباعة للفاتورة الحرارية 80mm */
+/* ========================================== */
+@media print {
+  /* إخفاء كل عناصر الصفحة ما عدا الفاتورة */
+  body * {
+    visibility: hidden;
+  }
+  
+  /* إظهار الفاتورة فقط وضبط موضعها */
+  .receipt-container, .receipt-container * {
+    visibility: visible;
+  }
+  
+  .receipt-container {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    margin: 0;
+    padding: 0;
+  }
+  
+  /* ضبط إعدادات الورقة وإزالة هوامش المتصفح الافتراضية */
+  @page {
+    margin: 0;
+    size: 80mm auto; /* العرض 80mm والطول تلقائي حسب المحتوى */
+  }
 }
