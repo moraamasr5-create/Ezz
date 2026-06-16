@@ -14,7 +14,9 @@ export default function ReceiptPrinter({ invoice, branchId, shiftId, tips }) {
       <div className="text-center font-bold text-xl mb-2">صالون العز الفاخر</div>
       <div className="text-center text-xs mb-4 border-b-2 border-black pb-2 border-dashed">
         <p>فرع: {branchId}</p>
-        <p>رقم الفاتورة: {invoice.id.substring(0, 8).toUpperCase()}</p>
+        <p>
+          رقم الفاتورة: {(invoice.id || '').substring(0, 8).toUpperCase()}
+        </p>
         <p>التاريخ: {new Date(invoice.created_at).toLocaleString('ar-SA')}</p>
       </div>
 
@@ -35,7 +37,7 @@ export default function ReceiptPrinter({ invoice, branchId, shiftId, tips }) {
           </tr>
         </thead>
         <tbody>
-          {invoice.items.map((item, index) => (
+          {(invoice.items || []).map((item, index) => (
             <tr key={index}>
               <td className="text-right py-1 truncate">{item.name}</td>
               <td className="text-left py-1 whitespace-nowrap">{item.price} ر.س</td>
