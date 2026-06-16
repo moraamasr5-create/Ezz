@@ -136,7 +136,7 @@ export default function SalesScreen() {
   };
 
   return (
-    <div className="p-4 md:p-6 bg-[#121212] text-white flex flex-col h-full overflow-hidden" dir="rtl">
+    <div className="h-screen overflow-hidden flex flex-col p-4 md:p-6 bg-[#121212] text-white" dir="rtl">
       
       {/* Header section (hidden in printing) */}
       <div className="print:hidden flex justify-between items-center border-b border-[#D4AF37]/50 pb-4 mb-4 flex-shrink-0">
@@ -154,10 +154,10 @@ export default function SalesScreen() {
       )}
 
       {/* Main Grid: height constrained to fit exactly within parent viewport */}
-      <div className="print:hidden flex-1 grid grid-cols-1 lg:grid-cols-3 gap-5 overflow-hidden min-h-0">
+      <div className="print:hidden flex-1 grid grid-cols-[2fr_1fr] gap-4 min-h-0 overflow-hidden">
         
-        {/* Right side: Selector & Services Grid (2 Columns on large screens) */}
-        <div className="lg:col-span-2 flex flex-col gap-4 overflow-hidden min-h-0">
+        {/* Left Column: Selector & Services Grid (2fr) */}
+        <div className="flex flex-col gap-4 overflow-hidden min-h-0">
           
           {/* Component 1: Customer and Barber Selection */}
           <div className="flex-shrink-0">
@@ -180,8 +180,8 @@ export default function SalesScreen() {
           </div>
         </div>
 
-        {/* Left side: Component 3: Cart and Payment */}
-        <div className="lg:col-span-1 h-full min-h-0">
+        {/* Right Column: Component 3: Cart and Payment (1fr) */}
+        <div className="h-full min-h-0">
           <CartPaymentPanel
             cart={cart}
             removeFromCart={removeFromCart}
