@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { db } from '../core/db';
+import { db } from '../lib/db';
 
 /**
  * دالة لإنشاء حدث جديد وحفظه محلياً في Dexie

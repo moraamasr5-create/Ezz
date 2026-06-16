@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { createEvent } from '../events/eventManager';
-import { EventTypes } from '../events/eventTypes';
-import { syncPendingEvents } from '../core/syncWorker';
+import { createEvent } from '../../utils/eventManager';
+import { EventTypes } from '../../utils/eventTypes';
+import { syncPendingEvents } from '../../lib/syncWorker';
 
 const BARBERS = [
   { id: 'b1', name: 'أحمد' },

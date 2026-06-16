@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../core/db';
-import { EventTypes } from '../events/eventTypes';
+import { db } from '../../lib/db';
+import { EventTypes } from '../../utils/eventTypes';
 
 export default function LiveQueueDisplay({ shiftId = 'shift-20240616-01' }) {
   const [currentTime, setCurrentTime] = useState(new Date());

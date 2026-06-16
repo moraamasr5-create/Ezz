@@ -1,62 +1,59 @@
-import React, { useEffect, useState } from 'react'
-import POSScreen from './screens/POSScreen'
-import BarberDashboard from './screens/BarberDashboard'
-import LiveQueueDisplay from './screens/LiveQueueDisplay'
-import { initSyncWorker } from './core/syncWorker'
-import { seedServices } from './core/db'
+import React, { useEffect } from 'react'
+import { Routes, Route, Link, useLocation } from 'react-router-dom'
+import POSScreen from './features/pos/POSScreen'
+import BarberDashboard from './features/dashboard/BarberDashboard'
+import LiveQueueDisplay from './features/queue/LiveQueueDisplay'
+import CustomerCheckIn from './features/queue/CustomerCheckIn'
+import TabletQueueScreen from './features/queue/TabletQueueScreen'
+import { initSyncWorker } from './lib/syncWorker'
+import { seedServices } from './lib/db'
+import { useRealtimeNotifications } from './hooks/useRealtimeNotifications'
 
 function App() {
-  const [currentScreen, setCurrentScreen] = useState('POS');
+  const location = useLocation();
+  const notification = useRealtimeNotifications();
 
   useEffect(() => {
-    // 1. تشغيل الـ Seed Data لزرع الخدمات محلياً (لن تتكرر إن وجدت)
     seedServices();
-    
-    // 2. تشغيل عامل المزامنة فور بدء التطبيق
     initSyncWorker();
   }, []);
 
+  // Hide nav on specific screens
+  const hideNav = location.pathname === '/queue-display' || location.pathname === '/check-in' || location.pathname === '/tablet';
+
   return (
-    // خلفية الفاخرة المعتمدة #121212 يتم تفعيلها من index.css أيضاً
     <div className="min-h-screen bg-[#121212] text-white font-sans flex flex-col">
-      {/* شريط التنقل العلوي مخفي عند الطباعة أو في شاشة العرض إذا أردنا (نظهره هنا للتبديل السهل) */}
-      {currentScreen !== 'QUEUE_DISPLAY' && (
-        <nav className="print:hidden bg-[#1a1a1a] border-b border-[#D4AF37]/50 p-4 flex justify-center gap-4 shadow-md">
-          <button 
-            onClick={() => setCurrentScreen('POS')}
-            className={`px-4 py-2 font-bold rounded transition-colors ${currentScreen === 'POS' ? 'bg-[#D4AF37] text-black' : 'text-[#D4AF37] hover:bg-[#D4AF37]/10'}`}
-          >
-            نقطة البيع (POS)
-          </button>
-          <button 
-            onClick={() => setCurrentScreen('BARBERS')}
-            className={`px-4 py-2 font-bold rounded transition-colors ${currentScreen === 'BARBERS' ? 'bg-[#D4AF37] text-black' : 'text-[#D4AF37] hover:bg-[#D4AF37]/10'}`}
-          >
-            لوحة المصففين
-          </button>
-          <button 
-            onClick={() => setCurrentScreen('QUEUE_DISPLAY')}
-            className={`px-4 py-2 font-bold rounded transition-colors ${currentScreen === 'QUEUE_DISPLAY' ? 'bg-[#D4AF37] text-black' : 'text-[#D4AF37] hover:bg-[#D4AF37]/10'}`}
-          >
-            شاشة الانتظار العامة
-          </button>
+      {/* Realtime Toast Notification */}
+      {notification && (
+        <div className="fixed top-4 right-4 z-[9999] bg-[#D4AF37] text-black px-6 py-4 rounded-xl shadow-[0_0_15px_rgba(212,175,55,0.4)] font-bold border-2 border-white/20 transition-all" dir="rtl">
+          {notification}
+        </div>
+      )}
+
+      {!hideNav && (
+        <nav className="print:hidden bg-[#1a1a1a] border-b border-[#D4AF37]/50 p-4 flex justify-center gap-4 shadow-md flex-wrap">
+          <Link to="/" className={`px-4 py-2 font-bold rounded transition-colors ${location.pathname === '/' ? 'bg-[#D4AF37] text-black' : 'text-[#D4AF37] hover:bg-[#D4AF37]/10'}`}>نقطة البيع (POS)</Link>
+          <Link to="/barbers" className={`px-4 py-2 font-bold rounded transition-colors ${location.pathname === '/barbers' ? 'bg-[#D4AF37] text-black' : 'text-[#D4AF37] hover:bg-[#D4AF37]/10'}`}>لوحة المصففين</Link>
+          <Link to="/queue-display" className={`px-4 py-2 font-bold rounded transition-colors ${location.pathname === '/queue-display' ? 'bg-[#D4AF37] text-black' : 'text-[#D4AF37] hover:bg-[#D4AF37]/10'}`}>شاشة الانتظار</Link>
+          <Link to="/check-in" className={`px-4 py-2 font-bold rounded transition-colors ${location.pathname === '/check-in' ? 'bg-[#D4AF37] text-black' : 'text-[#D4AF37] hover:bg-[#D4AF37]/10'}`}>شاشة العميل (QR)</Link>
+          <Link to="/tablet" className={`px-4 py-2 font-bold rounded transition-colors ${location.pathname === '/tablet' ? 'bg-[#D4AF37] text-black' : 'text-[#D4AF37] hover:bg-[#D4AF37]/10'}`}>التابلت</Link>
         </nav>
       )}
 
-      {/* زر عودة مخفي بداخل شاشة العرض فقط حتى يمكن الخروج منها */}
-      {currentScreen === 'QUEUE_DISPLAY' && (
-        <button 
-          onClick={() => setCurrentScreen('POS')}
-          className="fixed top-4 left-4 bg-black/50 text-white px-3 py-1 rounded opacity-20 hover:opacity-100 transition-opacity z-50 print:hidden"
-        >
+      {location.pathname === '/queue-display' && (
+        <Link to="/" className="fixed top-4 left-4 bg-black/50 text-white px-3 py-1 rounded opacity-20 hover:opacity-100 transition-opacity z-50 print:hidden">
           العودة
-        </button>
+        </Link>
       )}
 
       <div className="flex-1">
-        {currentScreen === 'POS' && <POSScreen />}
-        {currentScreen === 'BARBERS' && <BarberDashboard />}
-        {currentScreen === 'QUEUE_DISPLAY' && <LiveQueueDisplay />}
+        <Routes>
+          <Route path="/" element={<POSScreen />} />
+          <Route path="/barbers" element={<BarberDashboard />} />
+          <Route path="/queue-display" element={<LiveQueueDisplay />} />
+          <Route path="/check-in" element={<CustomerCheckIn />} />
+          <Route path="/tablet" element={<TabletQueueScreen />} />
+        </Routes>
       </div>
     </div>
   )

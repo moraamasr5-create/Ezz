@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../core/db';
-import { createEvent } from '../events/eventManager';
-import { syncPendingEvents } from '../core/syncWorker';
-import { EventTypes } from '../events/eventTypes';
-import { getCombinedCareTips } from '../core/SmartCareEngine';
+import { db } from '../../lib/db';
+import { createEvent } from '../../utils/eventManager';
+import { syncPendingEvents } from '../../lib/syncWorker';
+import { EventTypes } from '../../utils/eventTypes';
+import { getCombinedCareTips } from '../../utils/SmartCareEngine';
 
 // Import newly refactored modular components
 import CustomerBarberSelector from './CustomerBarberSelector';

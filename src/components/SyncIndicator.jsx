@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../core/db';
-import { syncPendingEvents } from '../core/syncWorker';
+import { db } from '../lib/db';
+import { syncPendingEvents } from '../lib/syncWorker';
 
 /**
  * مكون SyncIndicator

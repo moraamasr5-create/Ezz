@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../core/db';
+import { db } from '../lib/db';
 import { 
   buildInvoices, 
   buildCustomers, 
   getCurrentShiftState 
-} from '../core/eventReducer';
+} from '../utils/eventReducer';
 
 /**
  * Custom hook to show how we read raw events from Dexie

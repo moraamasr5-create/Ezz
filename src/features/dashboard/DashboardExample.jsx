@@ -1,5 +1,5 @@
 import React from 'react';
-import { useEventData } from '../hooks/useEventData';
+import { useEventData } from '../../hooks/useEventData';
 
 /**
  * Example component demonstrating the use of eventReducer
