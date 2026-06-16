@@ -12,16 +12,12 @@ const DashboardExample = ({ shiftId = 'shift_123' }) => {
     <div className="p-6 bg-[#1a1a1a] rounded-lg shadow-lg mt-6">
       <h2 className="text-2xl font-bold mb-4 text-[#e0a96d]">لوحة معلومات الوردية (مثال Event Reducer)</h2>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div className="p-4 bg-[#2a2a2a] rounded-lg border border-[#333]">
           <h3 className="text-gray-400 mb-1">حالة الوردية</h3>
           <p className="text-lg font-semibold">
             {shiftState.opened ? (shiftState.closed ? 'مغلقة' : 'مفتوحة') : 'لم تفتح بعد'}
           </p>
-        </div>
-        <div className="p-4 bg-[#2a2a2a] rounded-lg border border-[#333]">
-          <h3 className="text-gray-400 mb-1">إجمالي الإيرادات</h3>
-          <p className="text-xl font-bold text-green-400">{shiftState.total} ر.س</p>
         </div>
         <div className="p-4 bg-[#2a2a2a] rounded-lg border border-[#333]">
           <h3 className="text-gray-400 mb-1">عدد العملاء المسجلين</h3>
@@ -43,7 +39,7 @@ const DashboardExample = ({ shiftId = 'shift_123' }) => {
                   <span className="font-bold block text-gray-200">{inv.customer_name}</span>
                   <span className="text-gray-500 text-xs">{inv.created_at}</span>
                 </div>
-                <div className="font-bold text-green-400">{inv.total} ر.س</div>
+                <div className="font-bold text-green-400">{inv.total} ج.م</div>
               </li>
             ))}
           </ul>

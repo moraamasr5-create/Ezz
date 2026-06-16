@@ -52,11 +52,21 @@ export default function POSScreen() {
   const handleOpenShift = async () => {
     await createEvent(EventTypes.SHIFT_OPEN, { opened_by: 'Ahmed' }, currentBranchId, currentShiftId);
     setShiftState('OPEN');
+    localStorage.setItem(`shift_start_${currentShiftId}`, Date.now().toString());
     setMessage('✅ تم فتح الوردية بنجاح');
     syncPendingEvents();
   };
 
   const handleStartClosing = async () => {
+    const shiftStartTime = localStorage.getItem(`shift_start_${currentShiftId}`);
+    if (shiftStartTime) {
+      const hoursPassed = (Date.now() - parseInt(shiftStartTime)) / (1000 * 60 * 60);
+      if (hoursPassed < 10) {
+        setMessage('عذراً، لا يمكن إغلاق الوردية الحالية قبل مرور 10 ساعات على الأقل من بدئها');
+        return;
+      }
+    }
+    
     await createEvent(EventTypes.SHIFT_CLOSING, { expected_cash: shiftTotalSales }, currentBranchId, currentShiftId);
     setShiftState('CLOSING');
     setMessage('🔒 الوردية في وضع الإغلاق للمراجعة...');
@@ -92,6 +102,7 @@ export default function POSScreen() {
       customer_phone: customerPhone,
       items: cart,
       total: cartTotal,
+      invoice_number: salesEvents.length + 1,
     };
 
     // 1. توليد الحدث وحفظه في Dexie
@@ -134,8 +145,8 @@ export default function POSScreen() {
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-center border-b border-[#D4AF37] pb-4 mb-6">
           <div>
-            <h1 className="text-3xl text-[#D4AF37] font-bold">صالون العز الفاخر</h1>
-            <p className="text-[#B08D57] mt-1">الوردية: {currentShiftId} | إجمالي الكاشير: {shiftTotalSales} ر.س</p>
+            <h1 className="text-3xl text-[#D4AF37] font-bold">صالون عز الفاخر</h1>
+            <p className="text-[#B08D57] mt-1">الوردية: {currentShiftId}</p>
           </div>
           <div className="mt-4 md:mt-0">
             <SyncIndicator />
@@ -174,7 +185,7 @@ export default function POSScreen() {
                     className="bg-[#1a1a1a] border border-[#D4AF37]/50 hover:border-[#D4AF37] hover:bg-[#D4AF37]/10 p-6 rounded-lg text-lg flex flex-col items-center justify-center min-h-[100px] min-w-[48px] transition-all touch-manipulation"
                   >
                     <span className="font-bold text-white mb-2">{service.name}</span>
-                    <span className="text-[#B08D57]">{service.price} ر.س</span>
+                    <span className="text-[#B08D57]">{service.price} ج.م</span>
                   </button>
                 ))}
               </div>
@@ -220,7 +231,7 @@ export default function POSScreen() {
                       <li key={index} className="flex justify-between items-center bg-[#121212] p-3 rounded border border-[#B08D57]/30">
                         <span>{item.name}</span>
                         <div className="flex items-center">
-                          <span className="text-[#D4AF37] ml-4">{item.price} ر.س</span>
+                          <span className="text-[#D4AF37] ml-4">{item.price} ج.م</span>
                           <button onClick={() => removeFromCart(index)} className="text-red-500 font-bold hover:text-red-400 p-2 min-h-[48px] min-w-[48px]">X</button>
                         </div>
                       </li>
@@ -232,7 +243,7 @@ export default function POSScreen() {
               <div className="mt-6 pt-4 border-t border-[#D4AF37]">
                 <div className="flex justify-between items-center text-2xl font-bold mb-6">
                   <span>الإجمالي:</span>
-                  <span className="text-[#D4AF37]">{cartTotal} ر.س</span>
+                  <span className="text-[#D4AF37]">{cartTotal} ج.م</span>
                 </div>
                 <button 
                   onClick={handleCheckout}
@@ -251,7 +262,7 @@ export default function POSScreen() {
           <div className="bg-[#1a1a1a] p-8 rounded-lg border border-[#D4AF37] max-w-xl mx-auto text-center mt-10">
             <h2 className="text-2xl text-[#D4AF37] font-bold mb-6">مراجعة إغلاق الوردية</h2>
             <p className="text-gray-300 text-lg mb-8">
-              الكاشير المتوقع: <span className="font-bold text-3xl text-white mx-2">{shiftTotalSales}</span> ر.س
+              هل أنت متأكد من رغبتك في إغلاق الوردية الحالية؟
             </p>
             <div className="flex gap-4 justify-center">
               <button 

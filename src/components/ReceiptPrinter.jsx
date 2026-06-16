@@ -11,13 +11,13 @@ export default function ReceiptPrinter({ invoice, branchId, shiftId, tips }) {
   return (
     <div className="receipt-container hidden print:block bg-white text-black text-sm mx-auto" dir="rtl">
       {/* رأس الفاتورة */}
-      <div className="text-center font-bold text-xl mb-2">صالون العز الفاخر</div>
+      <div className="text-center font-bold text-xl mb-2">صالون عز</div>
       <div className="text-center text-xs mb-4 border-b-2 border-black pb-2 border-dashed">
-        <p>فرع: {branchId}</p>
+        <p>فرع: الخارجة</p>
         <p>
-          رقم الفاتورة: {(invoice.id || '').substring(0, 8).toUpperCase()}
+          رقم الفاتورة: {invoice.invoice_number || (invoice.id || '').substring(0, 8).toUpperCase()}
         </p>
-        <p>التاريخ: {new Date(invoice.created_at).toLocaleString('ar-SA')}</p>
+        <p>التاريخ: {new Date(invoice.created_at).toLocaleDateString('en-GB')} - {new Date(invoice.created_at).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: true})}</p>
       </div>
 
       {/* بيانات العميل إن وجدت */}
@@ -40,7 +40,7 @@ export default function ReceiptPrinter({ invoice, branchId, shiftId, tips }) {
           {(invoice.items || []).map((item, index) => (
             <tr key={index}>
               <td className="text-right py-1 truncate">{item.name}</td>
-              <td className="text-left py-1 whitespace-nowrap">{item.price} ر.س</td>
+              <td className="text-left py-1 whitespace-nowrap">{item.price} ج.م</td>
             </tr>
           ))}
         </tbody>
@@ -49,7 +49,7 @@ export default function ReceiptPrinter({ invoice, branchId, shiftId, tips }) {
       {/* الإجمالي */}
       <div className="flex justify-between font-bold text-lg mb-4 border-b-2 border-black pb-2 border-dashed">
         <span>الإجمالي الشامل:</span>
-        <span>{invoice.total} ر.س</span>
+        <span>{invoice.total} ج.م</span>
       </div>
 
       {/* محرك النصائح الذكي المطبوع */}
@@ -65,7 +65,7 @@ export default function ReceiptPrinter({ invoice, branchId, shiftId, tips }) {
       )}
 
       <div className="text-center mt-6 text-xs mb-2 font-bold">
-        شكراً لزيارتكم صالون العز
+        شكراً لزيارتكم صالون عز
       </div>
     </div>
   );
