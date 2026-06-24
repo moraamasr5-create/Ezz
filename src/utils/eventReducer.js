@@ -77,7 +77,9 @@ export const getCurrentShiftState = (events, shiftId) => {
     e?.payload?.shift_id === shiftId || e?.shift_id === shiftId
   );
 
-  const openedEvent = shiftEvents.find(e => e?.event_type === 'SHIFT_OPENED');
+  const openedEvent = shiftEvents.find(
+    e => e?.event_type === 'SHIFT_OPENED' || e?.event_type === 'SHIFT_OPEN'
+  );
   const closedEvent = shiftEvents.find(e => e?.event_type === 'SHIFT_CLOSED');
   
   const total = calculateShiftTotal(shiftEvents, shiftId);

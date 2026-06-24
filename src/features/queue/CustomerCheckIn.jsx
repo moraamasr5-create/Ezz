@@ -3,6 +3,7 @@ import { generateTicket, getQueuePosition } from './QueueService';
 import { syncPendingEvents } from '../../lib/syncWorker';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../lib/db';
+import { EventTypes } from '../../utils/eventTypes';
 
 export default function CustomerCheckIn() {
   const currentBranchId = 'branch-main-01'; 
@@ -67,10 +68,10 @@ export default function CustomerCheckIn() {
       
       // Get the latest status
       const latestEvent = myEvents[myEvents.length - 1];
-      if (latestEvent.event_type === 'QUEUE_JOINED') return 'WAITING';
-      if (latestEvent.event_type === 'QUEUE_SERVING') return 'SERVING';
-      if (latestEvent.event_type === 'QUEUE_COMPLETED') return 'COMPLETED';
-      if (latestEvent.event_type === 'QUEUE_CANCELLED') return 'CANCELLED';
+      if (latestEvent.event_type === EventTypes.QUEUE_JOINED) return 'WAITING';
+      if (latestEvent.event_type === EventTypes.QUEUE_SERVING) return 'SERVING';
+      if (latestEvent.event_type === EventTypes.QUEUE_COMPLETED) return 'COMPLETED';
+      if (latestEvent.event_type === EventTypes.QUEUE_CANCELLED) return 'CANCELLED';
       return null;
     },
     [ticketData?.ticketNumber],

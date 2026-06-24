@@ -5,7 +5,7 @@ import { useEventData } from '../../hooks/useEventData';
  * Example component demonstrating the use of eventReducer
  * via the useEventData hook.
  */
-const DashboardExample = ({ shiftId = 'shift_123' }) => {
+const DashboardExample = ({ shiftId = 'shift-20240616-01' }) => {
   const { invoices, customers, shiftState } = useEventData(shiftId);
 
   return (

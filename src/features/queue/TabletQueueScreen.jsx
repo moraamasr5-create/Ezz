@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../lib/db';
 import { updateTicketStatus } from './QueueService';
 import { syncPendingEvents } from '../../lib/syncWorker';
+import { EventTypes } from '../../utils/eventTypes';
 
 export default function TabletQueueScreen() {
   const currentBranchId = 'branch-main-01'; 
@@ -12,7 +13,12 @@ export default function TabletQueueScreen() {
   const allQueueEvents = useLiveQuery(
     () => db.events
       .where('shift_id').equals(currentShiftId)
-      .filter(e => ['QUEUE_JOINED', 'QUEUE_SERVING', 'QUEUE_COMPLETED', 'QUEUE_CANCELLED'].includes(e.event_type))
+      .filter(e => [
+        EventTypes.QUEUE_JOINED,
+        EventTypes.QUEUE_SERVING,
+        EventTypes.QUEUE_COMPLETED,
+        EventTypes.QUEUE_CANCELLED
+      ].includes(e.event_type))
       .toArray(),
     [currentShiftId]
   ) || [];
@@ -26,16 +32,16 @@ export default function TabletQueueScreen() {
   for (const event of sortedEvents) {
     const tNum = event.payload.ticket_number;
     
-    if (event.event_type === 'QUEUE_JOINED') {
+    if (event.event_type === EventTypes.QUEUE_JOINED) {
       ticketMap[tNum] = {
         ...event.payload,
         status: 'WAITING'
       };
-    } else if (event.event_type === 'QUEUE_SERVING') {
+    } else if (event.event_type === EventTypes.QUEUE_SERVING) {
       if (ticketMap[tNum]) ticketMap[tNum].status = 'SERVING';
-    } else if (event.event_type === 'QUEUE_COMPLETED') {
+    } else if (event.event_type === EventTypes.QUEUE_COMPLETED) {
       if (ticketMap[tNum]) ticketMap[tNum].status = 'COMPLETED';
-    } else if (event.event_type === 'QUEUE_CANCELLED') {
+    } else if (event.event_type === EventTypes.QUEUE_CANCELLED) {
       if (ticketMap[tNum]) ticketMap[tNum].status = 'CANCELLED';
     }
   }

@@ -110,7 +110,7 @@ export default function SalesScreen() {
       const tips = getCombinedCareTips(serviceIds);
 
       // 4. Set states for printer component
-      setLastInvoice(newEvent.payload);
+      setLastInvoice({ ...newEvent.payload, created_at: newEvent.created_at });
       setLastTips(tips);
 
       // 5. Reset states

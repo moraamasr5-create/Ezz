@@ -123,7 +123,7 @@ export default function POSScreen() {
     const tips = getCombinedCareTips(serviceIds);
 
     // 3. تجهيز الفاتورة للطباعة
-    setLastInvoice(newEvent.payload);
+    setLastInvoice({ ...newEvent.payload, created_at: newEvent.created_at });
     setLastTips(tips);
 
     // 4. تصفير السلة وتحديث الواجهة
